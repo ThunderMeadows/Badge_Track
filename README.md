@@ -33,8 +33,8 @@ The two blank forms are embedded in `index.html` so it works offline. Fonts and 
 ```
 index.html               the application
 manifest.webmanifest     home-screen install metadata
-
-icon.svg               app icon, tile
+assets/
+  icon.svg               app icon, tile
   icon-*.png             raster icons (32, 64, 180, 192, 512)
   badge-track-mark.svg   the mark on light
   badge-track-mark-inverse.svg
@@ -44,11 +44,11 @@ icon.svg               app icon, tile
 
 ## Adapting it to another course
 
-Open `index.html` and find `const COURSE`. Course number, title, unit, locations, and the lesson list (code, module, title, allocated hours) are plain data. `LESSON_PREFIX` sets the lesson-number prefix. `DEFAULT_OBSERVER` sets the name that opens on every new observation.
+Open `index.html` and find `const COURSE`. Course number, title, unit, locations, and the lesson list (code, module, title, allocated hours) are plain data. `LESSON_PREFIX` sets the lesson-number prefix (the training schedule and course map use 011-15M1; the ISAP uses 011-15M10). `SCHEDULES` holds the built-in class training schedule; more classes are imported from the training office PDF on the Hours tab (Log from the training schedule → Import) and kept with the records. `DEFAULT_OBSERVER` sets the name that opens on every new observation.
 
 ## Notes
 
 - This is a working aid built by an instructor for scoring and record-keeping. It is not an official Army or TRADOC system and does not replace the signed forms, the FDRP manager's records, or the regulation.
 - The criteria cues and comment phrasings are condensed prompts written for this tool. Score against the printed form; the rubric text itself belongs to its publishers.
-- TR 600-21 (2 May 2018) still cites 12, 16, and 20 points for the three badge levels. Those figures belong to the earlier four-item rubric. This tool uses the thresholds printed on the current form: 80, 85, and 90.
+- Requirements follow the Final Draft TR 600-21 placed in interim effect by TRADOC TASKORD 3G9B (27 June 2025), which sets the badge thresholds at 80, 85, and 90 on TF 600-21-1. The TASKORD is superseded when the reg is formally published; check the published version against the Badge progress tab when that happens.
 - The embedded TF 600-21-1 blank was repaired before embedding: the published PDF reuses one field name for nine of the ten score boxes, and several fields on both forms carry default-appearance strings that PDF fillers cannot parse.

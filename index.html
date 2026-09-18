@@ -332,6 +332,16 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
   background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:2px;
   font-size:.88rem;font-stretch:85%;box-shadow:0 2px 10px rgba(0,0,0,.25)}
 
+@media (pointer:coarse){
+  .iconbtn,.copt,.yn button,.pick button,.sig button,.today{min-height:38px;padding:7px 11px}
+  .del{padding:8px 9px;font-size:1rem;min-height:38px}
+  input[type=text],input[type=date],input[type=time],input[type=number],select{min-height:44px;font-size:1rem}
+  textarea{font-size:1rem}
+  .band{padding:12px 8px 11px}
+}
+.today{background:none;border:1px solid var(--rule);border-radius:2px;color:var(--soft);font-size:.7rem;
+  font-stretch:85%;padding:1px 7px;margin-left:6px;cursor:pointer;vertical-align:middle;line-height:1.4}
+.today:hover{border-color:var(--ink);color:var(--ink)}
 @media (max-width:560px){
   body{padding-bottom:112px}
   .bands{grid-template-columns:1fr 1fr}
@@ -429,9 +439,9 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
       </select></label>
   </div>
   <div class="grid g3 keep3" style="margin-top:10px">
-    <label class="f"><span>Date</span><input type="date" id="a-date"></label>
-    <label class="f"><span>Start time</span><input type="time" id="a-start"></label>
-    <label class="f"><span>End time</span><input type="time" id="a-end"></label>
+    <label class="f"><span>Date <button type="button" class="today" data-for="a-date">today</button></span><input type="date" id="a-date"></label>
+    <label class="f"><span>Start time <button type="button" class="today" data-for="a-start">now</button></span><input type="time" id="a-start"></label>
+    <label class="f"><span>End time <button type="button" class="today" data-for="a-end">now</button></span><input type="time" id="a-end"></label>
   </div>
   <div class="grid g3" style="margin-top:10px">
     <label class="f"><span>Observer (from roster, optional)</span><select id="a-obsid"></select></label>
@@ -523,9 +533,9 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
     <label class="f"><span>Title</span><input type="text" id="d-insttitle" placeholder="e.g. Instructor"></label>
   </div>
   <div class="grid g3 keep3" style="margin-top:10px">
-    <label class="f"><span>Date</span><input type="date" id="d-date"></label>
-    <label class="f"><span>Start time</span><input type="time" id="d-start"></label>
-    <label class="f"><span>End time</span><input type="time" id="d-end"></label>
+    <label class="f"><span>Date <button type="button" class="today" data-for="d-date">today</button></span><input type="date" id="d-date"></label>
+    <label class="f"><span>Start time <button type="button" class="today" data-for="d-start">now</button></span><input type="time" id="d-start"></label>
+    <label class="f"><span>End time <button type="button" class="today" data-for="d-end">now</button></span><input type="time" id="d-end"></label>
   </div>
   <div class="grid g2" style="margin-top:10px">
     <label class="f"><span>Unit or institution</span><input type="text" id="d-unit" list="dl-unit"></label>
@@ -601,7 +611,7 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
     <label class="f"><span>Class / lesson title</span><input type="text" id="h-title"></label>
     <label class="f"><span>Lesson number</span><input type="text" id="h-lno"></label>
     <div class="grid g2" style="gap:8px">
-      <label class="f"><span>Date</span><input type="date" id="h-date"></label>
+      <label class="f"><span>Date <button type="button" class="today" data-for="h-date">today</button></span><input type="date" id="h-date"></label>
       <div class="f"><span class="fl">AIH (hours and minutes)</span>
         <div class="hm"><select id="h-hh"></select><span>hrs</span><select id="h-mm"></select><span>min</span></div></div>
     </div>
@@ -996,6 +1006,16 @@ const $ = id => document.getElementById(id);
 function el(tag,cls,txt){ const e=document.createElement(tag);
   if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; }
 
+/* Run fn once the field is done being edited. On a phone the date wheel fires change
+   on every spin while it is still open, so anything that re-renders the field would
+   close the picker mid-selection. Wait for blur there; run at once on a desktop. */
+const COARSE = window.matchMedia && matchMedia("(pointer:coarse)").matches;
+function whenSettled(input, fn){
+  if(!COARSE || document.activeElement!==input){ fn(); return; }
+  input._pending=fn;
+  if(!input._blurWired){ input._blurWired=true;
+    input.addEventListener("blur",()=>{ const f=input._pending; input._pending=null; if(f) f(); }); }
+}
 function toast(msg){
   const t=el("div","toast",msg); document.body.appendChild(t);
   setTimeout(()=>t.remove(),2300);
@@ -1678,9 +1698,9 @@ function renderRoster(){
           const inp=document.createElement("input"); inp.type="date";
           inp.value=courseDate(p.courses||{},r.datefield);
           inp.title="Date completed";
-          inp.onchange=()=>{ const c=Object.assign({},p.courses||{});
+          inp.onchange=()=>whenSettled(inp,()=>{ const c=Object.assign({},p.courses||{});
             if(inp.value) c[r.datefield]=inp.value; else delete c[r.datefield];
-            savePerson(Object.assign({},p,{courses:c})); };
+            savePerson(Object.assign({},p,{courses:c})); });
           row.appendChild(inp);
         }
         if(r.counter){
@@ -2026,7 +2046,7 @@ $("set-aih").onchange=()=>{ saveDefaults({aihFormat:$("set-aih").value}); render
 $("set-prefix").onchange=()=>{ saveDefaults({lessonPrefix:$("set-prefix").value}); buildLessonSelect($("a-lesson")); buildLessonSelect($("h-lesson")); buildLessonSelect($("d-lesson")); renderSchedList(); toast("Lesson numbers now start "+$("set-prefix").value+"."); };
 $("h-instructor").onchange=()=>{ renderHours(); renderSchedList(); };
 let hClsPick="";
-$("h-date").addEventListener("change",()=>{
+$("h-date").addEventListener("change",()=>whenSettled($("h-date"),()=>{
   const d=$("h-date").value; const rows=schedOn(d); if(!rows.length) return;
   if($("h-title").value || $("h-lno").value) return;
   pickSched(rows,$("h-date"),r=>{
@@ -2034,7 +2054,7 @@ $("h-date").addEventListener("change",()=>{
     if(L){ $("h-lesson").value=L.code; $("h-title").value=L.title; $("h-lno").value=lessonId(L); }
     setHM(r.min/60); hClsPick=r.cls;
     toast("Class "+r.cls+": "+(L?L.title:r.code)+", "+fmtHM(r.min/60)); });
-});
+}));
 function renderSchedList(){
   const host=$("hs-list"); if(!host) return; host.innerHTML="";
   const pid=$("h-instructor").value; const per=people.find(x=>x.id===pid);
@@ -2500,6 +2520,14 @@ function setHM(dec){
 }
 function getHM(){ return (Number($("h-hh").value)||0) + (Number($("h-mm").value)||0)/60; }
 
+/* ---- today / now shortcuts ---- */
+document.querySelectorAll("button.today").forEach(b=>{
+  b.onclick=e=>{ e.preventDefault(); const t=$(b.dataset.for); const d=new Date();
+    t.value = t.type==="time" ? String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")
+      : d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    t.dispatchEvent(new Event("input")); t.dispatchEvent(new Event("change")); };
+});
+
 /* ================= COURSE PICKERS ================= */
 function lessonId(L){ return (loadDefaults().lessonPrefix||LESSON_PREFIX)+L.code; }
 function buildLessonSelect(sel){
@@ -2520,7 +2548,7 @@ function fillList(id, items){
 }
 function initPickers(){
   buildLessonSelect($("a-lesson")); buildLessonSelect($("h-lesson")); buildLessonSelect($("d-lesson"));
-  $("d-date").addEventListener("change",()=>{
+  $("d-date").addEventListener("change",()=>whenSettled($("d-date"),()=>{
     const rows=schedOn($("d-date").value); if(!rows.length) return;
     if(dev.courseTitle && dev.loc) return;
     pickSched(rows,$("d-date"),r=>{ const L=COURSE.lessons.find(x=>x.code===r.code); dev.cls=r.cls;
@@ -2528,7 +2556,7 @@ function initPickers(){
       dev.slots=dev.slots||{}; if(!dev.slots.topic){ dev.slots.topic=L.title.toLowerCase().replace(/ evaluation$/,""); const i=document.querySelector('#dev-questions .specs input'); if(i) i.value=dev.slots.topic; } }
     if(!dev.loc && r.loc){ dev.loc=schedLoc(r.loc); $("d-loc").value=dev.loc; }
     persistDev(); toast("Class "+r.cls+": "+(L?L.title:r.code)); });
-  });
+  }));
   $("d-lesson").onchange=()=>{ const L=COURSE.lessons.find(x=>x.code===$("d-lesson").value); if(!L) return;
     dev.courseTitle=COURSE.title+": "+L.title; $("d-ctitle").value=dev.courseTitle;
     dev.slots=dev.slots||{}; if(!dev.slots.topic){ dev.slots.topic=L.title.toLowerCase().replace(/ evaluation$/,""); const i=document.querySelector('#dev-questions .specs input'); if(i) i.value=dev.slots.topic; }
@@ -2538,7 +2566,7 @@ function initPickers(){
   fillList("dl-org",[COURSE.unit,"2-13th Aviation Regiment","DOTD, USAACE"]);
   fillList("dl-loc",COURSE.locations);
   fillList("dl-course",[COURSE.number+" "+COURSE.title]);
-  $("a-date").addEventListener("change",()=>{
+  $("a-date").addEventListener("change",()=>whenSettled($("a-date"),()=>{
     const rows=schedOn($("a-date").value); if(!rows.length) return;
     if(draft.admin.lessonNo && draft.admin.loc) return;
     pickSched(rows,$("a-date"),r=>{ const L=COURSE.lessons.find(x=>x.code===r.code);
@@ -2546,7 +2574,7 @@ function initPickers(){
     if(L && !draft.admin.lessonNo){ draft.admin.lessonNo=lessonId(L); draft.admin.courseTitle=COURSE.title+": "+L.title; $("a-lesson").value=L.code; $("a-lno").value=draft.admin.lessonNo; $("a-ctitle").value=draft.admin.courseTitle; changed=true; }
     if(!draft.admin.loc && r.loc){ draft.admin.loc=schedLoc(r.loc); $("a-loc").value=draft.admin.loc; changed=true; }
     if(changed){ persistDraft(); buildSections(); refresh(); toast("Class "+r.cls+": "+(L?L.title:r.code)); } });
-  });
+  }));
   $("a-lesson").onchange=()=>{
     const L=COURSE.lessons.find(x=>x.code===$("a-lesson").value); if(!L) return;
     draft.admin.lessonNo=lessonId(L); draft.admin.courseTitle=COURSE.title+": "+L.title;

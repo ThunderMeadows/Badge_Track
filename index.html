@@ -247,6 +247,10 @@ input:hover,select:hover,textarea:hover{border-color:var(--soft)}
 .wtxt b{color:var(--olive)}
 tr.offwin td{color:var(--soft);opacity:.6}
 .hs-time{padding-right:10px!important}
+.sig{display:inline-flex;gap:3px}
+.sig button{background:var(--paper);border:1px solid var(--rule);border-radius:2px;padding:2px 7px;font-size:.72rem;font-stretch:85%;color:var(--soft);cursor:pointer}
+.sig button[aria-pressed="true"]{background:var(--olive);border-color:var(--olive);color:var(--paper)}
+.sig .all{color:var(--olive);font-weight:600;font-size:.74rem;margin-left:4px}
 .schedpick{border:1px solid var(--gold);background:var(--gold-lo);border-radius:2px;padding:8px 10px;margin-top:8px}
 .schedpick .sp-l{font-size:.82rem;font-weight:600;font-stretch:90%;margin-bottom:6px}
 @media (max-width:560px){.hs-room{display:none}}
@@ -403,6 +407,7 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
 <nav class="tabs"><div class="wrap">
   <button id="t-score" aria-selected="true">Score</button>
   <button id="t-dev" aria-selected="false">Developmental</button>
+  <button id="t-rec" aria-selected="false">Records</button>
   <button id="t-roster" aria-selected="false">Badge progress</button>
   <button id="t-hours" aria-selected="false">Hours</button>
 </div></nav>
@@ -548,6 +553,29 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
     <tbody id="devrows"></tbody></table>
 </main>
 
+<!-- ============ RECORDS ============ -->
+<main class="wrap hidden" id="v-rec">
+  <div class="sechead"><h2>Records</h2><span class="pct" id="rec-count"></span></div>
+  <p class="note">Every observation, worksheet, and hours sheet saved in the tool, across all instructors. A 2657-R record is created each time you fill the form from the Hours tab; it remembers which entries were on that sheet. Mark each form as it gets signed; an unsigned form is the most common reason a packet comes back.</p>
+  <div class="grid g3" style="margin-top:6px">
+    <label class="f"><span>Instructor</span><select id="rec-inst"></select></label>
+    <label class="f"><span>Form</span><select id="rec-type">
+      <option value="">All forms</option>
+      <option value="evaluation">TF 600-21-1, formal observation</option>
+      <option value="selfassessment">TF 600-21-1, self-assessment</option>
+      <option value="certboard">TF 600-21-1, certification board</option>
+      <option value="developmental">TF 600-21-1, developmental</option>
+      <option value="devobs">TF 600-21-4, developmental worksheet</option>
+      <option value="aih">USAACE 2657-R, academic instructor hours</option>
+    </select></label>
+    <label class="f"><span>Signatures</span><select id="rec-sig">
+      <option value="">Any</option><option value="open">Missing a signature</option><option value="done">Fully signed</option>
+    </select></label>
+  </div>
+  <table><thead><tr><th>Date</th><th>Form</th><th>Instructor</th><th>Observer</th><th class="num">Score</th><th>Signed</th><th class="num"></th></tr></thead>
+    <tbody id="recrows"></tbody></table>
+</main>
+
 <!-- ============ ROSTER ============ -->
 <main class="wrap hidden" id="v-roster">
   <div class="sechead"><h2>Instructors</h2>
@@ -580,6 +608,25 @@ tr.tot td{border-bottom:0;border-top:2px solid var(--ink);font-weight:700}
   </div>
   <div style="margin-top:10px"><button class="btn" id="h-add">Add hours entry</button></div>
   <p class="note hidden" id="h-clock" style="border-left:3px solid var(--olive);padding-left:10px"></p>
+
+  <details class="cue builder" id="h-settings"><summary>Local settings, for whatever DOTD or the FDRP manager tells you</summary>
+    <div class="grid g2" style="margin-top:6px">
+      <label class="f"><span>AIH column on the 2657-R</span><select id="set-aih">
+        <option value="hm">Hours and minutes (6:45)</option>
+        <option value="dec">Decimal hours (6.75)</option>
+        <option value="whole">Whole hours, rounded (7)</option></select></label>
+      <label class="f"><span>2657-R sheets</span><select id="set-sheet">
+        <option value="one">One running sheet per instructor, all classes in date order</option>
+        <option value="perclass">One sheet per class</option></select></label>
+      <label class="f"><span>Class number on each row</span><select id="set-clsrow">
+        <option value="yes">Show it after the lesson title, e.g. "(26-503)"</option>
+        <option value="no">Leave the title as the lesson plan names it</option></select></label>
+      <label class="f"><span>Lesson-number prefix</span><select id="set-prefix">
+        <option value="011-15M1">011-15M1 (training schedule, course map)</option>
+        <option value="011-15M10">011-15M10 (ISAP)</option></select></label>
+    </div>
+    <p class="note">These change how entries display and export from now on; the stored minutes and lesson codes stay the same, so switching back is harmless. Change them only when someone with the local regulation tells you which is right.</p>
+  </details>
 
   <details class="cue builder" id="h-schedpanel"><summary>Log from the training schedule</summary>
     <p class="note">Each row is one lesson on one training day, from every class schedule loaded, with the instructional time the schedule allocates it. Tick the days you taught as primary instructor, in whichever class, and add them in one pass. Days already logged for this instructor are hidden.</p>
@@ -905,6 +952,7 @@ let people = [];        // {id,name,rank,unit,level,startDate,baibDate,saibDate,
 let observations = [];  // saved observation records
 let hours = [];         // {id,instructorId,title,lessonNo,date,hrs,supervisor,course}
 let devobs = [];        // TF 600-21-4 worksheets
+let aihs = [];          // 2657-R exports: which hours entries were on the sheet, and whether the supervisor signed
 let draft = loadDraft();
 let openCues = new Set();
 let editDraft = null;
@@ -966,7 +1014,7 @@ function toast(msg){
 })();
 
 /* ---------------- tabs ---------------- */
-const TABS=[["t-score","v-score"],["t-dev","v-dev"],["t-roster","v-roster"],["t-hours","v-hours"]];
+const TABS=[["t-score","v-score"],["t-dev","v-dev"],["t-rec","v-rec"],["t-roster","v-roster"],["t-hours","v-hours"]];
 TABS.forEach(([b,v])=>{ $(b).onclick=()=>{
   TABS.forEach(([bb,vv])=>{ $(bb).setAttribute("aria-selected", bb===b);
     $(vv).classList.toggle("hidden", vv!==v); });
@@ -1306,6 +1354,7 @@ $("savebtn").onclick=async ()=>{
   if(rec.type==="evaluation") saveDefaults({obsName:rec.obsName,obsOrg:rec.obsOrg,unit:rec.unit,loc:rec.loc,obsEic:rec.obsEic,obsId:rec.obsId||""});
   try{
     if(draft.editingId){
+      const prev=observations.find(o=>o.id===draft.editingId); if(prev&&prev.signed) rec.signed=prev.signed;
       await db.doc("observations/"+draft.editingId).set(rec);
       const i=observations.findIndex(o=>o.id===draft.editingId);
       const full=Object.assign({id:draft.editingId},rec);
@@ -1470,9 +1519,9 @@ function requirements(p){
     reqs.push({t:"Twelve months as an instructor after the Basic packet was submitted",
       done:(m||0)>=12, ref:"3-4e(2)",
       v:p.baibDate?Math.floor(m)+" of 12 months (eligible "+addMonths(p.baibDate,12)+")":"No Basic packet date"});
-    dated("Instructor Writer Course (IWC), or IDBC / CFD-DC as a substitute","iwc","3-4e(5)");
+    dated("Lesson-design course: any one of IWC, IDBC (online, ALMS), or CFD-DC","iwc","3-4e(5)");
     dated("Evaluating Instructor Course (EIC) or Instructor Observation Course (IOC)","eic","3-4e(5)");
-    dated("Lesson redesign after the course, 80% or better on TF 600-21-5 (Mar 2025, 13 rating areas)","redesign","3-4e(6)");
+    dated("Lesson redesign after that course, 80% or better on TF 600-21-5, graded by a CFD-DC qualified rater","redesign","3-4e(6)");
     { const rd=courseDate(c,"redesign"), id=courseDate(c,"iwc");
       if(rd && id && rd<id){ const r=reqs[reqs.length-1]; r.done=false; r.v=rd+" is before the course ("+id+")"; } }
   }
@@ -1500,10 +1549,11 @@ function requirements(p){
 
   // formal observations
   const unc=streak.filter(o=>!o.preCounsel||!o.postCounsel).length;
+  const unsigned=streak.filter(o=>!sigDone(o,"evaluation")).length;
   reqs.push({t:need+" formal observations at "+pct+" or better, at least seven days apart, by an EIC or IOC qualified evaluator, each with pre- and post-observation counseling",
     done:streak.length>=need, v:streak.length+" of "+need,
     ref: target==="Basic"?"3-4d(7)":target==="Senior"?"3-4e(8)":"3-4f(6)",
-    detail: (streak.length? streak.map(o=>o.date+" ("+o.total+")").join(", "):"")+(unc?" — "+unc+" missing a counseling date (para 3-3b)":""), dates:streak.map(o=>o.date)});
+    detail: (streak.length? streak.map(o=>o.date+" ("+o.total+")").join(", "):"")+(unc?" — "+unc+" missing a counseling date (para 3-3b)":"")+(unsigned?" — "+unsigned+" not yet signed by both parties":""), dates:streak.map(o=>o.date)});
 
   // self-assessments, one before each formal observation feedback session
   { let paired=0, prev=win.after||"";
@@ -1523,7 +1573,7 @@ function requirements(p){
     reqs.push({t:nd+" developmental observations of other instructors on TF 600-21-4, with written feedback to each and copies to the supervisor",
       done:cnt>=nd, v:cnt+" of "+nd+(list.length?" ("+list.length+" on record here)":""),
       counter: target==="Basic"?"devObs":"devObsSenior", max:nd, ref: target==="Basic"?"3-4d(8)":"3-4e(9)",
-      detail: list.length? list.map(d=>d.date+(d.instructorName?" "+d.instructorName:"")).join(", "):null});
+      detail: (list.length? list.map(d=>d.date+(d.instructorName?" "+d.instructorName:"")).join(", "):"")+(list.filter(d=>!sigDone(d,"devobs")).length?" — "+list.filter(d=>!sigDone(d,"devobs")).length+" not yet signed by all three":"")||null});
   }
   if(target==="Master"){
     const conducted=observations.filter(o=>o.obsId===p.id && o.type==="evaluation" && o.obsEic && o.instructorId!==p.id).length;
@@ -1668,6 +1718,8 @@ function renderRoster(){
         const sc=el("td","num", o.noGo? "No-go" : o.total+"%"); if(o.noGo) sc.style.color="var(--signal)";
         tr.appendChild(sc);
         const d=el("td","num");
+        const pf=el("button","del","pdf"); pf.title="Fill TF 600-21-1 from this record"; pf.style.fontSize=".76rem";
+        pf.onclick=()=>fillRubric(o).catch(e=>{ console.error(e); toast("Could not fill the form."); }); d.appendChild(pf);
         const ed=el("button","del","edit"); ed.title="Load into the score tab"; ed.style.fontSize=".76rem";
         ed.onclick=()=>loadObservation(o); d.appendChild(ed);
         const b=el("button","del","×"); b.title="Delete this observation";
@@ -1862,7 +1914,7 @@ function renderHours(){
     tot+=Number(h.hrs)||0;
     const tr=el("tr");
     if(cs.from && (!h.date || h.date<cs.from)) tr.className="offwin";
-    tr.appendChild(el("td",null,h.title||"—"));
+    tr.appendChild(el("td",null,(h.title||"—")+(h.cls&&(loadDefaults().clsRow||"yes")==="yes"?" ("+h.cls+")":"")));
     tr.appendChild(el("td",null,h.lessonNo||"—"));
     tr.appendChild(el("td",null,h.date||"—"));
     tr.appendChild(el("td",null,h.cls||""));
@@ -1966,6 +2018,12 @@ $("hs-file").onchange=async e=>{
 };
 $("hs-cls").onchange=()=>{ $("hs-from").value=""; $("hs-to").value=""; renderSchedList(); };
 
+$("set-aih").value=aihFormat(); $("set-prefix").value=loadDefaults().lessonPrefix||LESSON_PREFIX;
+$("set-sheet").value=loadDefaults().sheetMode||"one"; $("set-clsrow").value=loadDefaults().clsRow||"yes";
+$("set-sheet").onchange=()=>saveDefaults({sheetMode:$("set-sheet").value});
+$("set-clsrow").onchange=()=>{ saveDefaults({clsRow:$("set-clsrow").value}); renderHours(); };
+$("set-aih").onchange=()=>{ saveDefaults({aihFormat:$("set-aih").value}); renderHours(); renderSchedList(); renderRoster(); toast("AIH column now "+$("set-aih").selectedOptions[0].textContent.toLowerCase()+"."); };
+$("set-prefix").onchange=()=>{ saveDefaults({lessonPrefix:$("set-prefix").value}); buildLessonSelect($("a-lesson")); buildLessonSelect($("h-lesson")); buildLessonSelect($("d-lesson")); renderSchedList(); toast("Lesson numbers now start "+$("set-prefix").value+"."); };
 $("h-instructor").onchange=()=>{ renderHours(); renderSchedList(); };
 let hClsPick="";
 $("h-date").addEventListener("change",()=>{
@@ -2419,7 +2477,12 @@ function composeOverall(seed){
 
 /* ---- academic hours as hours and minutes, the way lesson plans and POIs carry time ---- */
 function toMin(dec){ return Math.round((Number(dec)||0)*60); }
-function fmtHM(dec){ const m=toMin(dec); return Math.floor(m/60)+":"+String(m%60).padStart(2,"0"); }
+function aihFormat(){ return loadDefaults().aihFormat||"hm"; }
+function fmtHM(dec){ const m=toMin(dec);
+  const f=aihFormat();
+  if(f==="dec") return (Math.round(m/60*100)/100).toFixed(2).replace(/\.?0+$/,"") || "0";
+  if(f==="whole") return String(Math.round(m/60));
+  return Math.floor(m/60)+":"+String(m%60).padStart(2,"0"); }
 function hoursText(dec){ const m=toMin(dec), h=Math.floor(m/60), mm=m%60;
   return h+" hr"+(h===1?"":"s")+(mm?" "+mm+" min":""); }
 function buildHM(){
@@ -2438,7 +2501,7 @@ function setHM(dec){
 function getHM(){ return (Number($("h-hh").value)||0) + (Number($("h-mm").value)||0)/60; }
 
 /* ================= COURSE PICKERS ================= */
-function lessonId(L){ return LESSON_PREFIX+L.code; }
+function lessonId(L){ return (loadDefaults().lessonPrefix||LESSON_PREFIX)+L.code; }
 function buildLessonSelect(sel){
   sel.innerHTML="";
   const o=el("option",null,"Pick a lesson, or type the fields by hand"); o.value=""; sel.appendChild(o);
@@ -2543,8 +2606,18 @@ function setTxt(form,name,val,size,multi){
     if(multi) f.enableMultiline(); f.setText(val==null?"":String(val)); }catch(e){ console.warn(name,e); }
 }
 
-async function fillRubric(){
+function draftFromRecord(o){
+  return { admin:{instructorId:o.instructorId,type:o.type,date:o.date,obsName:o.obsName,obsOrg:o.obsOrg,obsNo:o.obsNo,unit:o.unit,loc:o.loc,
+      courseNo:o.courseNo,lessonNo:o.lessonNo,courseTitle:o.courseTitle,start:o.start,end:o.end,obsEic:!!o.obsEic,obsId:o.obsId||"",
+      preCounsel:o.preCounsel||"",postCounsel:o.postCounsel||"",cls:o.cls||""},
+    docs:o.docs||{}, scores:o.scores||{}, comments:o.comments||{}, overall:o.overall||"", builder:o.criteria||{}, slots:o.slots||{} };
+}
+async function fillRubric(fromRecord){
   if(!window.PDFLib){ toast("PDF library did not load. Check the connection and reload."); return; }
+  const live=draft; if(fromRecord){ draft=draftFromRecord(fromRecord); }
+  try{ await fillRubricInner(); } finally { draft=live; }
+}
+async function fillRubricInner(){
   const t=tallies();
   const p=people.find(x=>x.id===draft.admin.instructorId);
   const who=p? (p.rank?p.rank+" ":"")+p.name : "";
@@ -2599,16 +2672,26 @@ async function fillRubric(){
   await deliverPdf("TF600-21-1_"+safeName(p?p.name:"")+"_"+(a.date||"undated")+".pdf", bytes);
 }
 
-async function fillICH(){
+async function fillICH(fromRecord){
   if(!window.PDFLib){ toast("PDF library did not load. Check the connection and reload."); return; }
-  const pid=$("h-instructor").value;
+  const pid=fromRecord? fromRecord.instructorId : $("h-instructor").value;
   const p=people.find(x=>x.id===pid);
   if(!p){ toast("Pick an instructor first."); return; }
-  const rows=hours.filter(h=>h.instructorId===pid).sort((a,b)=>(a.date||"")<(b.date||"")?-1:1);
-  if(!rows.length){ toast("No hours recorded for this instructor."); return; }
+  let rows=hours.filter(h=>h.instructorId===pid).sort((a,b)=>(a.date||"")<(b.date||"")?-1:1);
+  if(fromRecord){ const ids=new Set(fromRecord.entryIds||[]); rows=rows.filter(h=>ids.has(h.id)); }
+  if(!rows.length){ toast(fromRecord? "The entries on that sheet have been deleted." : "No hours recorded for this instructor."); return; }
   const who=(p.rank?p.rank+" ":"")+p.name;
-  const course=$("h-course").value.trim() || (rows[rows.length-1].course||"");
-  const sup=$("h-super").value.trim() || (rows[rows.length-1].supervisor||"");
+  const course=fromRecord? (fromRecord.course||"") : ($("h-course").value.trim() || (rows[rows.length-1].course||""));
+  const sup=fromRecord? (fromRecord.supervisor||"") : ($("h-super").value.trim() || (rows[rows.length-1].supervisor||""));
+  const clsRow=(loadDefaults().clsRow||"yes")==="yes";
+  if(!fromRecord && (loadDefaults().sheetMode||"one")==="perclass"){
+    const groups={}; rows.forEach(h=>{ const k=h.cls||""; (groups[k]=groups[k]||[]).push(h); });
+    const keys=Object.keys(groups);
+    if(keys.length>1){
+      for(const k of keys){ await fillICH({instructorId:pid, entryIds:groups[k].map(h=>h.id), course:course+(k?" (class "+k+")":""), supervisor:sup, _cls:k, _log:true}); }
+      return;
+    }
+  }
   const chunks=[]; for(let i=0;i<rows.length;i+=24) chunks.push(rows.slice(i,i+24));
   toast(chunks.length>1? "Filling "+chunks.length+" pages of 2657-R…" : "Filling 2657-R…");
   for(let ci=0;ci<chunks.length;ci++){
@@ -2621,7 +2704,7 @@ async function fillICH(){
     let tot=0;
     chunks[ci].forEach((h,i)=>{
       const n=i+1; tot+=Number(h.hrs)||0;
-      setTxt(form,"ClassLesson TitleRow"+n,h.title||"",8);
+      setTxt(form,"ClassLesson TitleRow"+n,(h.title||"")+(clsRow&&h.cls?" ("+h.cls+")":""),8);
       setTxt(form,"Lesson NumberRow"+n,h.lessonNo||"",8);
       setTxt(form,"DatesRow"+n,ymd(h.date),8);
       setTxt(form,"AIHRow"+n,fmtHM(h.hrs),8);
@@ -2629,8 +2712,18 @@ async function fillICH(){
     setTxt(form,"AIHTotal Instructor Contact Hours",fmtHM(tot),9);
     form.updateFieldAppearances(helv);
     const bytes=await doc.save();
-    const suffix=chunks.length>1?"_p"+(ci+1):"";
+    const suffix=(fromRecord&&fromRecord._cls?"_"+fromRecord._cls:"")+(chunks.length>1?"_p"+(ci+1):"");
     await deliverPdf("AIH-2657-R_"+safeName(p.name)+suffix+".pdf", bytes);
+  }
+  if((!fromRecord || fromRecord._log) && db){
+    const ids=rows.map(h=>h.id).sort();
+    const same=aihs.find(a=>a.instructorId===pid && (a.entryIds||[]).slice().sort().join()===ids.join());
+    if(!same){
+      const total=Math.round(rows.reduce((a,h)=>a+(Number(h.hrs)||0),0)*60)/60;
+      const rec={instructorId:pid, entryIds:ids, from:rows[0].date||"", to:rows[rows.length-1].date||"", total, pages:chunks.length,
+        course, supervisor:sup, cls:(fromRecord&&fromRecord._cls)||"", createdAt:new Date().toISOString(), signed:{}};
+      try{ const ref=await db.collection("aih").add(rec); aihs.push(Object.assign({id:ref.id},rec)); toast("Logged as a 2657-R record; mark it signed on the Records tab."); renderRecords(); }catch(e){}
+    }
   }
 }
 let ovSeed=Date.now();
@@ -2731,7 +2824,8 @@ async function saveDev(){
   if(!db){ toast("Shared storage is unavailable in this view."); return; }
   const rec=devRecord();
   try{
-    if(dev.editingId){ await db.doc("devobs/"+dev.editingId).set(rec);
+    if(dev.editingId){ const prev=devobs.find(d=>d.id===dev.editingId); if(prev&&prev.signed) rec.signed=prev.signed;
+      await db.doc("devobs/"+dev.editingId).set(rec);
       const i=devobs.findIndex(d=>d.id===dev.editingId); const full=Object.assign({id:dev.editingId},rec);
       if(i>=0) devobs[i]=full; else devobs.push(full); toast("Worksheet updated."); }
     else { const ref=await db.collection("devobs").add(rec); devobs.push(Object.assign({id:ref.id},rec)); toast("Worksheet saved."); }
@@ -2754,6 +2848,8 @@ function renderDev(){
     tr.appendChild(el("td",null,(d.instructorRank?d.instructorRank+" ":"")+(d.instructorName||"—")));
     tr.appendChild(el("td",null,(d.courseTitle||"").replace(/^.*?:\s*/,"")));
     const c=el("td","num");
+    const pf=el("button","del","pdf"); pf.style.fontSize=".76rem"; pf.title="Fill TF 600-21-4 from this record";
+    pf.onclick=()=>fillDevPdf(d).catch(e=>{ console.error(e); toast("Could not fill the form."); }); c.appendChild(pf);
     const ed=el("button","del","edit"); ed.style.fontSize=".76rem"; ed.onclick=()=>loadDev2(d); c.appendChild(ed);
     const x=el("button","del","×"); x.title="Delete";
     x.onclick=async()=>{ if(!confirm("Delete this worksheet?")) return;
@@ -2761,8 +2857,12 @@ function renderDev(){
     c.appendChild(x); tr.appendChild(c); tb.appendChild(tr);
   });
 }
-async function fillDevPdf(){
+async function fillDevPdf(fromRecord){
   if(!window.PDFLib){ toast("PDF library did not load. Check the connection and reload."); return; }
+  const live=dev; if(fromRecord){ dev=Object.assign({},fromRecord); }
+  try{ await fillDevPdfInner(); } finally { dev=live; }
+}
+async function fillDevPdfInner(){
   toast("Filling TF 600-21-4…");
   const doc=await PDFLib.PDFDocument.load(b64bytes("pdf-devobs"));
   const form=doc.getForm();
@@ -2958,6 +3058,68 @@ $("d-save").onclick=()=>saveDev();
 $("d-pdf").onclick=()=>fillDevPdf().catch(e=>{ console.error(e); toast("Could not fill the form."); });
 $("d-clear").onclick=()=>{ if(!confirm("Clear this worksheet? Saved records are not affected.")) return; dev=blankDev(); persistDev(); wireDev(); };
 
+
+/* ================= RECORDS ================= */
+/* One list of every saved form. Signature status lives on the record:
+   TF 600-21-1 needs the instructor and the observer (appendix D-2e);
+   TF 600-21-4 needs the instructor observed, the observer, and the supervisor (section III). */
+function sigParties(kind){ return kind==="devobs" ? ["instructor","observer","supervisor"] : kind==="aih" ? ["supervisor"] : ["instructor","observer"]; }
+function sigDone(rec,kind){ const sg=rec.signed||{}; return sigParties(kind).every(k=>sg[k]); }
+async function setSig(rec,kind,party,val){
+  rec.signed=Object.assign({},rec.signed||{},{[party]:val});
+  try{ const path=(kind==="devobs"?"devobs/":kind==="aih"?"aih/":"observations/")+rec.id; const copy=Object.assign({},rec); delete copy.id;
+    await db.doc(path).set(copy); }catch(e){ toast("Could not save the signature status."); }
+  renderRecords(); renderRoster();
+}
+function renderRecords(){
+  const tb=$("recrows"); if(!tb) return; tb.innerHTML="";
+  const sel=$("rec-inst"); if(!sel.options.length || sel.dataset.n!==String(people.length)){
+    const keep=sel.value; sel.innerHTML=""; const o=el("option",null,"All instructors"); o.value=""; sel.appendChild(o);
+    people.forEach(p=>{ const op=el("option",null,(p.rank?p.rank+" ":"")+p.name); op.value=p.id; sel.appendChild(op); });
+    sel.value=keep; sel.dataset.n=String(people.length); }
+  const fi=$("rec-inst").value, ft=$("rec-type").value, fs=$("rec-sig").value;
+  const nameOf=id=>{ const p=people.find(x=>x.id===id); return p? (p.rank?p.rank+" ":"")+p.name : ""; };
+  const items=[];
+  observations.forEach(o=>items.push({kind:o.type||"evaluation",rec:o,date:o.date||"",inst:nameOf(o.instructorId),instId:o.instructorId,
+    obs:o.obsName||"",score:o.noGo?"No-go":(o.rated>=10?String(o.total):(o.rated||0)+"/10 rated"),form:"TF 600-21-1"}));
+  devobs.forEach(d=>items.push({kind:"devobs",rec:d,date:d.date||"",inst:[d.instructorRank,d.instructorName].filter(Boolean).join(" "),instId:d.observerId,
+    obs:[d.observerRank,d.observerName].filter(Boolean).join(" "),score:"",form:"TF 600-21-4"}));
+  aihs.forEach(a=>items.push({kind:"aih",rec:a,date:a.to||a.createdAt.slice(0,10),inst:nameOf(a.instructorId),instId:a.instructorId,
+    obs:a.supervisor||"",score:hoursText(a.total||0),form:"USAACE 2657-R"}));
+  const label={evaluation:"Formal observation",selfassessment:"Self-assessment",certboard:"Cert board",developmental:"Developmental obs",devobs:"Dev worksheet",aih:"AIH record"};
+  const rows=items.filter(it=>(!fi||it.instId===fi||it.rec.observerId===fi||it.rec.obsId===fi)&&(!ft||it.kind===ft)
+      &&(!fs||(fs==="done"?sigDone(it.rec,it.kind):!sigDone(it.rec,it.kind)))).sort((a,b)=>a.date<b.date?1:-1);
+  $("rec-count").textContent=rows.length+" of "+items.length;
+  if(!rows.length){ const tr=el("tr"); const td=el("td",null,items.length?"Nothing matches those filters.":"No forms saved yet."); td.colSpan=7; td.style.color="var(--soft)"; tr.appendChild(td); tb.appendChild(tr); return; }
+  rows.forEach(it=>{
+    const tr=el("tr");
+    tr.appendChild(el("td",null,it.date||"—"));
+    tr.appendChild(el("td",null,it.form+"\n"+(label[it.kind]||it.kind)+(it.rec.cls?", "+it.rec.cls:"")+(it.kind==="aih"?", "+(it.rec.entryIds||[]).length+" entries "+(it.rec.from||"")+" to "+(it.rec.to||""):"")));
+    tr.lastChild.style.whiteSpace="pre-line";
+    tr.appendChild(el("td",null,it.inst||"—"));
+    tr.appendChild(el("td",null,it.obs||"—"));
+    const sc=el("td","num",it.score); if(it.score==="No-go") sc.style.color="var(--signal)"; tr.appendChild(sc);
+    const sg=el("td"); const box=el("div","sig"); const st=it.rec.signed||{};
+    sigParties(it.kind).forEach(party=>{ const b=el("button",null,{instructor:"Instr",observer:"Obs",supervisor:"Sup"}[party]);
+      b.setAttribute("aria-pressed",!!st[party]); b.title=party+" signed"; b.onclick=()=>setSig(it.rec,it.kind,party,!st[party]); box.appendChild(b); });
+    if(sigDone(it.rec,it.kind)) box.appendChild(el("span","all","✓ all"));
+    sg.appendChild(box); tr.appendChild(sg);
+    const act=el("td","num");
+    const pf=el("button","del","pdf"); pf.style.fontSize=".76rem";
+    pf.onclick=()=>(it.kind==="devobs"?fillDevPdf(it.rec):it.kind==="aih"?fillICH(it.rec):fillRubric(it.rec)).catch(e=>{ console.error(e); toast("Could not fill the form."); }); act.appendChild(pf);
+    if(it.kind==="aih"){
+      const go=el("button","del","hours"); go.style.fontSize=".76rem"; go.onclick=()=>{ $("h-instructor").value=it.instId; renderHours(); renderSchedList(); $("t-hours").click(); }; act.appendChild(go);
+      const x=el("button","del","×"); x.title="Remove this record (the hours entries stay)";
+      x.onclick=async()=>{ if(!confirm("Remove this 2657-R record? The hours entries themselves stay.")) return; try{ await db.doc("aih/"+it.rec.id).delete(); aihs=aihs.filter(a=>a.id!==it.rec.id); renderRecords(); }catch(e){ toast("Could not remove."); } }; act.appendChild(x);
+    } else {
+      const ed=el("button","del","edit"); ed.style.fontSize=".76rem"; ed.onclick=()=>(it.kind==="devobs"?loadDev2(it.rec):loadObservation(it.rec)); act.appendChild(ed);
+    }
+    tr.appendChild(act); tb.appendChild(tr);
+  });
+}
+["rec-inst","rec-type","rec-sig"].forEach(id=>$(id).onchange=renderRecords);
+$("t-rec").addEventListener("click",renderRecords);
+
 /* ================= STORAGE SHIM =================
    When the page is hosted on its own (GitHub Pages, a unit share, a phone's
    home screen) there is no shared runtime database, so records live in this
@@ -3017,13 +3179,15 @@ wireDev(); fillClassSelect(); renderRoster(); renderHours(); renderDev(); render
     return;
   }
   try{
-    const [pi,ob,hr,dv,sc]=await Promise.all([
+    const [pi,ob,hr,dv,sc,ai]=await Promise.all([
       db.collection("instructors").get(),
       db.collection("observations").get(),
       db.collection("hours").get(),
       db.collection("devobs").get(),
-      db.collection("schedules").get()
+      db.collection("schedules").get(),
+      db.collection("aih").get()
     ]);
+    aihs=ai.docs.map(d=>Object.assign({id:d.id},d.data()));
     sc.docs.forEach(d=>{ const S=d.data(); if(S&&S.rows){ SCHEDULES=SCHEDULES.filter(x=>x.cls!==S.cls).concat([S]); } });
     fillClassSelect();
     devobs=dv.docs.map(d=>Object.assign({id:d.id},d.data()));
@@ -3031,7 +3195,7 @@ wireDev(); fillClassSelect(); renderRoster(); renderHours(); renderDev(); render
       .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
     observations=ob.docs.map(d=>Object.assign({id:d.id},d.data()));
     hours=hr.docs.map(d=>Object.assign({id:d.id},d.data()));
-    fillPeopleSelects(); wireDev(); renderRoster(); renderHours(); renderDev(); renderSchedList();
+    fillPeopleSelects(); wireDev(); renderRoster(); renderHours(); renderDev(); renderSchedList(); renderRecords();
   }catch(e){
     $("roster").prepend(el("p","note","Could not load saved records. Reload to retry."));
   }

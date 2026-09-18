@@ -44,7 +44,7 @@ assets/
 
 ## Adapting it to another course
 
-Open `index.html` and find `const COURSE`. Course number, title, unit, locations, and the lesson list (code, module, title, allocated hours) are plain data. `LESSON_PREFIX` sets the lesson-number prefix (the training schedule and course map use 011-15M1; the ISAP uses 011-15M10). `SCHEDULES` holds the built-in class training schedule; more classes are imported from the training office PDF on the Hours tab (Log from the training schedule → Import) and kept with the records. `DEFAULT_OBSERVER` sets the name that opens on every new observation.
+Open `index.html` and find `const COURSE`. Course number, title, unit, locations, and the lesson list (code, module, title, allocated hours) are plain data. The AIH column format and the lesson-number prefix are settings on the Hours tab (Local settings), so they can be switched to whatever DOTD or the FDRP manager specifies without editing the file. `SCHEDULES` holds the built-in class training schedule; more classes are imported from the training office PDF on the Hours tab (Log from the training schedule → Import) and kept with the records. `DEFAULT_OBSERVER` sets the name that opens on every new observation.
 
 ## Notes
 
